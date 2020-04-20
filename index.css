@@ -4,6 +4,8 @@
 	box-sizing: border-box;
 	margin: 0;
 	padding: 0;
+	--no-doping-color: green;
+	--doping-color: red;
 }
 
 .App {
@@ -38,9 +40,16 @@ main {
 }
 
 #title {
-	margin: 15px;
+	margin-top: 15px;
+	margin-bottom: 5px;
 	font-weight: bold;
 	text-align: center;
+}
+
+#subtitle {
+	margin-top: 0px;
+	margin-bottom: 10px;
+	font-size: 1em;
 }
 
 #chart-div {
@@ -57,13 +66,62 @@ main {
 	box-shadow: 1px 1px 3px black;
 }
 
-.bar {
-	fill: blue;
+.axis-label {
+	text-anchor: middle;
+	font-size: 0.6em;
 }
 
-.bar:hover {
+.dot {
+	stroke: black;
+}
+
+.dot:hover {
 	fill: yellow;
 }
+
+.no-doping {
+	fill: var(--no-doping-color);
+}
+
+.with-doping {
+	fill: var(--doping-color);
+}
+
+.legend-container-rect {
+	stroke: black;
+	fill: rgb(240, 240, 240);
+}
+
+.legend-circle {
+	stroke: black;
+}
+
+.legend-text {
+	font-size: 0.6em;
+}
+
+.tooltip-div {
+	position: absolute;
+	color: white;
+	height: auto;
+	width: auto;
+	max-width: 200px;
+	padding: 10px;
+	border-radius: 10px;
+	
+	box-shadow: 0 10px 20px grey;
+	pointer-events: none;	
+	font-size: 0.6em;	
+}
+
+.tooltip-no-doping {
+	background-color: var(--no-doping-color);
+}
+
+.tooltip-with-doping {
+	background-color: var(--doping-color);
+}
+
 
 .subtext {
 	margin: 15px;

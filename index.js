@@ -2,8 +2,12 @@
 // April 2020
 
 const DATA_URL = 'cyclist-data.json';
-const PADDING = 50; // px
-// const DATE_REGEX = /(\d{4})-(\d{2})-(\d{2})/; // eg.: "1946-01-01"
+const PADDING = {
+	top: 70,
+	bottom: 70,
+	left: 70,
+	right: 200
+};
 
 const SVG_DIV = d3.select('#chart-div');
 let svgElement = d3.select('#chart-svg');
@@ -12,11 +16,16 @@ let dataset = undefined;
 d3
 	.json(DATA_URL)
 	.then((parsedData) => {
-        console.log(`typeof parsedData: ${typeof parsedData}
-        parsedData.length: ${parsedData.length}`);
-
-        // TODO: create Date objects for minutes (and years?)
-		dataset = parsedData;
+		dataset = parsedData.map((d) => {
+			let parsedTime = d.Time.split(':');
+			return {
+				...d,
+				TimeDate: new Date(Date.UTC(1970, 0, 1, 0, parsedTime[0], parsedTime[1])),
+				YearDate: new Date(Date.UTC(d.Year, 0, 1))
+			};
+		});
+		console.log(`dataset[0].TimeDate.toUTCString(): ${dataset[0].TimeDate.toUTCString()}`);
+		generateGraph(svgElement, dataset, PADDING);
 	})
 	.catch((error) => console.log('error: ' + error));
 
@@ -29,102 +38,131 @@ window.onresize = () => {
     }
 };
 */
-/*
-fetch(DATA_URL)
-	.then((response) => {
-		if (response.status === 200) {
-			return response.json();
-		} else {
-			throw new Error('Server error: ' + response.status);
-		}
-	})
-	.then((jsondata) => {
-		console.log('data received: ' + jsondata.description);
-		document.getElementById('description').innerHTML =
-            jsondata.description.replace(/\n/g, '<br>') + '<br>Source: ' + jsondata.source_name;
-        dataYear = jsondata.data.map((d) => [ parseDate(d[0]), d[1], d[0] ]); //  new format [Date object, GDP, date string]
-		generateGraph(SVG_ITEM, dataYear, PADDING);
-	})
-	.catch((error) => console.log('error: ' + error));
-*/
 
-/*
-function parseDate(str) {
-	let result = DATE_REGEX.exec(str);
-	return new Date(Date.UTC(result[1], result[2] - 1, result[3]));
-}
-
-/* Data example 
-
-{
-    "Time": "36:50",
-    "Place": 1,
-    "Seconds": 2210,
-    "Name": "Marco Pantani",
-    "Year": 1995,
-    "Nationality": "ITA",
-    "Doping": "Alleged drug use during 1995 due to high hematocrit levels",
-    "URL": "https://en.wikipedia.org/wiki/Marco_Pantani#Alleged_drug_use"
-  }
-  
-*/
-
-/*
-function generateGraph(svg, dataYear, padding) {
+function generateGraph(svg, dataset, padding, svgDiv = SVG_DIV) {
 	const regexPx = /\d+/; // ignores decimals, 'px'
 	const svgWidth = parseInt(svg.style('width').match(regexPx));
 	const svgHeight = parseInt(svg.style('height').match(regexPx));
 
-	const maxValue = d3.max(dataYear, (d) => d[1]);
+	let tooltipDiv = undefined;
 
-	console.log(`dataYear.length: ${dataYear.length}
-    maxvalue: ${maxValue}
+	console.log(`dataset.length: ${dataset.length}
     svgWidth: ${svgWidth}
     svgHeight: ${svgHeight}`);
 
-	const xScale = d3.scaleUtc().domain(d3.extent(dataYear, (d) => d[0])).range([ padding, svgWidth - padding ]);
-	const yScale = d3.scaleLinear().domain([ 0, maxValue ]).range([ svgHeight - padding, padding ]);
-    const barWidth = (svgWidth - padding * 2) / dataYear.length;
-    
-    // workaround to pass fCC test
-    let tooltip = svg.append('text')
-    .attr('x', 0.2*svgWidth)
-    .attr('y', 0.2*svgHeight)
-    .attr('height', '50px')
-    .attr('id', 'tooltip')
-    .text('');
-
-	svg
-		.selectAll('rect')
-		.data(dataYear)
-		.enter()
-		.append('rect')
-		.attr('class', 'bar')
-		.attr('data-date', (d) => d[2])
-		.attr('data-gdp', (d) => d[1])
-		.attr('x', (d, i) => xScale(d[0]))
-		.attr('y', (d, i) => yScale(d[1]))
-		.attr('width', barWidth)
-        .attr('height', (d, i) => svgHeight - padding - yScale(d[1]))
-        .on('mouseover', (d, i) => {
-            tooltip.text( d[2] + '; ' + '$' + d[1] + 'b');
-            tooltip.attr('data-date', d[2]);
-            tooltip.style('opacity', 0.9);
-        })
-        .on('mouseout', (d, i) => {
-            tooltip.text('');
-            tooltip.attr('data-date', '');
-            tooltip.style('opacity', 0);
-        })
-        .append('title')
-		.text((d, i) => 'Data Point #' + i + ':\n' + d[2] + '\n' + '$' + d[1] + 'b');
-
-
-	const yAxis = d3.axisLeft(yScale);
-	svg.append('g').attr('transform', 'translate(' + padding + ', 0)').attr('id', 'y-axis').call(yAxis);
+	// Generate axes and labels; adds 1 year before/after x-axis so that points don't display on borders
+	let xExtent = d3.extent(dataset, (d) => d.YearDate);
+	xExtent[0] = new Date(xExtent[0]).setUTCFullYear(xExtent[0].getUTCFullYear() - 1);
+	xExtent[1] = new Date(xExtent[1]).setUTCFullYear(xExtent[1].getUTCFullYear() + 1);
+	const xScale = d3.scaleUtc().domain(xExtent).range([ padding.left, svgWidth - padding.right ]);
+	const yScale = d3
+		.scaleUtc()
+		.domain(d3.extent(dataset, (d) => d.TimeDate))
+		.range([ padding.top, svgHeight - padding.bottom ]); // inverted y-axis
 	const xAxis = d3.axisBottom(xScale);
-    svg.append('g').attr('transform', 'translate(0, ' + (svgHeight - padding) + ')').attr('id', 'x-axis').call(xAxis);
-    
-    
+	svg
+		.append('g')
+		.attr('transform', 'translate(0, ' + (svgHeight - padding.bottom) + ')')
+		.attr('id', 'x-axis')
+		.call(xAxis);
+	const yTimeFormat = d3.timeFormat('%M:%S');
+	const yAxis = d3.axisLeft(yScale).tickFormat(yTimeFormat);
+	svg.append('g').attr('transform', 'translate(' + padding.left + ', 0)').attr('id', 'y-axis').call(yAxis);
+	svg
+		.append('text')
+		.attr('class', 'axis-label')
+		.attr('y', padding.left - 45)
+		.attr('x', -svgHeight / 2)
+		.text('Time (minutes)')
+		.attr('transform', 'rotate(-90)');
+	svg
+		.append('text')
+		.attr('class', 'axis-label')
+		.attr('x', svgWidth / 2)
+		.attr('y', svgHeight - padding.bottom + 40)
+		.text('Year');
+
+	// Generate legend for dot colors
+	let numDoping = dataset.reduce((prev, current) => (current.Doping == '' ? prev : prev + 1), 0);
+	let numNodoping = dataset.length - numDoping;
+	let legendG = svg
+		.append('g')
+		.attr('id', 'legend')
+		.attr('transform', 'translate(' + (svgWidth - 190) + ', ' + (svgHeight / 3 - 10) + ')');
+	legendG.append('rect').attr('height', 70).attr('width', 170).attr('class', 'legend-container-rect');
+	legendG
+		.append('circle')
+		.attr('cx', 18)
+		.attr('cy', 20)
+		.attr('r', 7)
+		.attr('height', 20)
+		.attr('width', 20)
+		.attr('class', 'legend-circle no-doping');
+	legendG
+		.append('text')
+		.attr('x', 37)
+		.attr('y', 25)
+		.attr('class', 'legend-text')
+		.text('No doping allegations (' + numNodoping + ')');
+	legendG
+		.append('circle')
+		.attr('cx', 18)
+		.attr('cy', 52)
+		.attr('r', 7)
+		.attr('height', 20)
+		.attr('width', 20)
+		.attr('class', 'legend-circle with-doping');
+	legendG
+		.append('text')
+		.attr('x', 37)
+		.attr('y', 55)
+		.attr('class', 'legend-text')
+		.text('Doping allegations (' + numDoping + ')');
+
+	// Generate dots and link to tooltip
+	const dotRadius = 5;
+	svg
+		.selectAll('circle')
+		.data(dataset)
+		.enter()
+		.append('circle')
+		.attr('class', (d) => (d.Doping == '' ? 'dot no-doping' : 'dot with-doping'))
+		.attr('cx', (d, i) => xScale(d.YearDate))
+		.attr('cy', (d, i) => yScale(d.TimeDate))
+		.attr('r', dotRadius)
+		.attr('data-xvalue', (d) => d.YearDate.toISOString())
+		.attr('data-yvalue', (d) => d.TimeDate.toISOString())
+		.on('mouseover', (d, i) => {
+			let newHtml = [
+				'<strong>' + d.Name + '</strong>',
+				'Nationality: ' + d.Nationality,
+				'Year: ' + d.Year,
+				'Time: ' + d.Time,
+				'Place: ' + d.Place,
+				d.Doping == '' ? '' : 'Allegations: ' + d.Doping
+			].join('<br>');
+			if (d.URL != '') {
+				newHtml += '<br><strong><em>Click to see source</em></strong>';
+			}	
+			tooltipDiv
+				.attr('class', d.Doping == '' ? 'tooltip-div tooltip-no-doping' : 'tooltip-div tooltip-with-doping')
+				.html(newHtml)
+				.attr('data-year', d.YearDate.toISOString())
+				.attr('data-xvalue', xScale(d.YearDate))
+				.style('opacity', 0.9)
+				.style('left', d3.event.pageX + 10 + 'px')
+				.style('top', d3.event.pageY - 28 + 'px');
+		})
+		.on('mouseout', (d, i) => {
+			tooltipDiv.style('opacity', 0);
+		})
+		.on('click', (d, i) => {
+			if (d.URL != '') {
+				window.open(d.URL, '_blank');
+			}
+		});
+
+	// Generate tooltip
+	tooltipDiv = svgDiv.append('div').attr('id', 'tooltip').attr('class', 'tooltip-div').style('opacity', 0);
+
 }
-*/
